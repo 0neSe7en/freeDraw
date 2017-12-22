@@ -1,96 +1,78 @@
+const Point = require('./Point');
 const clearBtn = document.getElementById('clearBtn');
-const ele = document.getElementById('canvas');
+const paintCanvas = document.getElementById('canvas');
 
-const context = ele.getContext('2d');
-// const ratio = window.devicePixelRatio || 1;
-const ratio = 1;
-const retina = ratio > 1;
-console.log(ratio, context.scale);
-let drawing = false;
-let currentLine = [];
-let lastPoint = null;
+// TODO: 处理Retina屏幕
 
-class Point {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
+class Drawing {
+  constructor(canvasElement) {
+    console.log('start...');
+    this.width = 2;
+    this.color = 'red';
+    this.paintElement = canvasElement;
+    this.tmpCanvas = document.getElementById('tmpCanvas');
+    this.tmpCanvas.width = this.paintElement.width;
+    this.tmpCanvas.height = this.paintElement.height;
+    this.paintCtx = this.paintElement.getContext('2d');
+    this.tmpCtx = this.tmpCanvas.getContext('2d');
+    this.isDrawing = false;
+    this.currentPoints = [];
+    this.scale = 1;
+    this.selfMove = this.onMouseMove.bind(this);
+
+    this.tmpCanvas.addEventListener('mousedown', this.onMouseDown.bind(this));
+    this.tmpCanvas.addEventListener('mouseup', this.onMouseUp.bind(this));
+  }
+
+  onMouseDown(e) {
+    this.isDrawing = true;
+    this.tmpCtx.strokeStyle = this.color;
+    this.tmpCtx.lineJoin = "round";
+    this.tmpCtx.lineCap = 'round';
+    this.tmpCtx.lineWidth =  this.width;
+    this.currentPoints.push(new Point(e.offsetX, e.offsetY));
+    this.tmpCanvas.addEventListener('mousemove', this.selfMove, false);
+  }
+
+  onMouseUp() {
+    this.tmpCanvas.removeEventListener('mousemove', this.selfMove, false);
+    this.paintCtx.drawImage(this.tmpCanvas, 0, 0);
+    this.tmpCtx.clearRect(0, 0, this.tmpCanvas.width, this.tmpCanvas.height);
+    this.currentPoints = [];
+    this.isDrawing = false;
+  }
+
+  onMouseMove(e) {
+    this.currentPoints.push(new Point(e.offsetX, e.offsetY));
+    this.paint();
+  }
+
+  paint() {
+    const start = this.currentPoints[0];
+    if (this.currentPoints.length < 3) {
+      this.tmpCtx.beginPath();
+      this.tmpCtx.arc(start.x, start.y, this.tmpCtx.lineWidth / 2, 0, Math.PI * 2, true);
+      this.tmpCtx.fill();
+      this.tmpCtx.closePath();
+      return;
+    }
+    this.tmpCtx.clearRect(0, 0, this.tmpCanvas.width, this.tmpCanvas.height);
+    this.tmpCtx.beginPath();
+    this.tmpCtx.moveTo(start.x, start.y);
+
+    for (let i = 1; i < this.currentPoints.length - 1; i++) {
+      const current = this.currentPoints[i];
+      const midPoint = this.currentPoints[i].mid(this.currentPoints[i + 1]);
+      this.tmpCtx.quadraticCurveTo(current.x, current.y, midPoint.x, midPoint.y);
+    }
+    this.tmpCtx.stroke();
+  }
+
+  clear() {
+    this.paintCtx.clearRect(0, 0, this.paintElement.width, this.paintElement.height);
   }
 }
 
-function lerp (last, that, t) {
-  if (typeof t === 'undefined') {
-    t = 0.5;
-  }
-  t = Math.max(Math.min(1, t), 0);
-  return new Point(last.x + (that.x - last.x) * t, last.y + (that.y - last.y) * t);
-}
+const draw = new Drawing(paintCanvas);
+clearBtn.addEventListener('click', draw.clear.bind(draw));
 
-ele.addEventListener('mousedown', (e) => {
-  context.beginPath();
-  context.strokeStyle = "#df4b26";
-  context.lineJoin = "round";
-  context.lineCap = 'round';
-  context.lineWidth = 10 / ratio;
-  lastPoint = new Point(e.offsetX, e.offsetY);
-  drawing = true;
-})
-
-ele.addEventListener('mouseup', () => {
-  drawing = false;
-})
-
-ele.addEventListener('mouseleave', () => {
-  drawing = false;
-})
-
-// ele.addEventListener('mousemove', (e) => {
-//   if (!drawing) {
-//     return;
-//   }
-//   // context.beginPath();
-//
-//   const currentPoint = new Point(
-//     Math.floor(e.offsetX),
-//     Math.floor(e.offsetY));
-//   context.lineTo(currentPoint.x, currentPoint.y);
-//   context.stroke();
-//   lastPoint = currentPoint;
-//   // context.closePath();
-//   // if (retina) {
-//   //   context.restore();
-//   // }
-// })
-
-
-ele.addEventListener('mousemove', (e) => {
-  if (!drawing) {
-    return;
-  }
-  // if (retina) {
-  //   context.save();
-  //   context.scale(ratio, ratio);
-  // }
-  context.beginPath();
-
-  context.moveTo(lastPoint.x, lastPoint.y);
-  context.strokeStyle = "#df4b26";
-  context.lineJoin = "round";
-  context.lineCap = 'round';
-  context.lineWidth = 10 / ratio;
-
-  const currentPoint = new Point(Math.floor(e.offsetX), Math.floor(e.offsetY));
-  const midPoint = lerp(lastPoint, currentPoint);
-  console.log(currentPoint, midPoint, lastPoint);
-  context.quadraticCurveTo(lastPoint.x, lastPoint.y, midPoint.x, midPoint.y);
-  context.lineTo(currentPoint.x, currentPoint.y);
-  context.stroke();
-  lastPoint = currentPoint;
-  // context.closePath();
-  // if (retina) {
-  //   context.restore();
-  // }
-})
-
-clearBtn.addEventListener('click', () => {
-  context.clearRect(0, 0, context.canvas.width, context.canvas.height); // Clears the canvas
-})
